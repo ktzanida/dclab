@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DC Lab — Data Center Siting Intelligence</title>
+  <meta name="description" content="Interactive, physics-based screening of a data center's noise footprint (ISO 9613-2) and water footprint (hourly cooling thermodynamics on real local weather, EU water-stress context). Every assumption disclosed." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">
+      <span class="bolt">🏢</span>
+      <span class="brand-name">DC Lab</span>
+      <span class="brand-sub">data center siting intelligence — noise &amp; water</span>
+    </div>
+    <nav id="nav">
+      <a href="#noise" data-view="noise" class="active">🔊 Noise Lab</a>
+      <a href="#water" data-view="water">💧 Water Lab</a>
+    </nav>
+    <div class="status">
+      <button id="export-report" class="btn-ghost" title="One PDF: both labs' current results, parameters, impact context and references — via your browser's print dialog (choose 'Save as PDF').">📄 Export PDF report</button>
+      <a class="brand-sub" href="#" onclick="return false" title="Fully client-side: physics runs in your browser; open data (Open-Meteo, Eurostat) is fetched directly from the sources.">no backend · open data</a>
+    </div>
+  </header>
+
+  <div id="report-overlay" class="report-overlay" hidden></div>
+  <div id="print-report"></div>
+
+  <main>
+    <!-- =============================== NOISE LAB ============================= -->
+    <section id="view-noise" class="view active">
+      <div class="noise-layout">
+        <div class="noise-map-wrap">
+          <div id="noise-map"></div>
+          <div class="nz-hover mono" id="nz-hover" hidden></div>
+          <div class="nz-legend" id="nz-legend"></div>
+          <div class="map-attrib">
+            Basemap © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
+            contributors © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a> ·
+            Propagation: ISO&nbsp;9613-2 screening model — see “How this model works”
+          </div>
+        </div>
+
+        <aside class="noise-panel">
+          <div class="page-head">
+            <h1>Noise Lab</h1>
+            <p>Drop a data center anywhere in Europe and see how far its hum carries.
+               Octave-band ISO&nbsp;9613-2 propagation, computed live in your browser —
+               drag the building, move the sliders, watch the plume breathe.</p>
+          </div>
+          <div class="fac-block">
+            <div class="fac-title">🔗 The facility — shared with the Water Lab</div>
+            <div class="nz-site mono" id="nz-site"></div>
+            <label class="nz-slider">IT capacity <output id="nz-mw-out" class="mono"></output>
+              <input type="range" id="nz-mw" min="5" max="300" step="5" value="60"></label>
+            <div class="nz-field">Cooling technology
+              <div id="nz-tech" class="wl-tech"></div>
+            </div>
+          </div>
+
+          <div class="nz-controls">
+            <div class="nz-field">Noise metric
+              <div class="seg" id="nz-metric">
+                <button data-val="day" class="active" title="Full-load daytime LAeq — plus generators when a test is running">Day</button>
+                <button data-val="night" title="Lnight: part-load cooling, no generator tests, stricter limits">Night</button>
+                <button data-val="den" title="Lden: 24 h day/evening/night composite with +5/+10 dB weightings (EU Environmental Noise Directive)">Lden</button>
+              </div>
+            </div>
+
+            <div class="nz-toggles">
+              <label><input type="checkbox" id="nz-gen"> Generator test <span class="nz-dim">(monthly, 1–2 h — the loud event; day view)</span></label>
+              <label><input type="checkbox" id="nz-pkg"> Acoustic mitigation package <span class="nz-dim">(low-noise fans, attenuators, better silencers)</span></label>
+              <label><input type="checkbox" id="nz-rating"> Rating level <span class="nz-dim">(+5 dB where tonal hum is audible — BS 4142 / TA Lärm style)</span></label>
+              <label><input type="checkbox" id="nz-unc"> Show ±3 dB uncertainty <span class="nz-dim">(the method's stated accuracy, as bands on the 45/55 contours)</span></label>
+            </div>
+
+            <div class="nz-field">Meteorology
+              <div class="seg" id="nz-met">
+                <button data-val="worst" class="active" title="ISO 9613-2 core method: downwind propagation toward every receptor at once — the worst realistic case">Downwind worst case</button>
+                <button data-val="avg" title="ISO 9613-2 §8 long-term average: receptors upwind of the prevailing wind get up to −3 dB (Cmet)">Long-term average</button>
+              </div>
+            </div>
+            <label class="nz-slider" id="nz-wind-row">Prevailing wind <output id="nz-wind-out" class="mono"></output>
+              <input type="range" id="nz-wind" min="0" max="345" step="15" value="240"></label>
+
+            <label class="nz-field">Area character <span class="nz-dim">(sets the background level the plume is judged against)</span>
+              <select id="nz-area">
+                <option value="rural">Rural — quiet countryside</option>
+                <option value="suburban" selected>Suburban</option>
+                <option value="urban">Urban — busy city</option>
+              </select></label>
+
+            <label class="nz-slider">Perimeter noise wall <output id="nz-wall-out" class="mono"></output>
+              <input type="range" id="nz-wall" min="0" max="12" step="0.5" value="0"></label>
+
+            <label class="nz-field">Surrounding ground
+              <select id="nz-ground">
+                <option value="0">Hard — water, pavement, dense city</option>
+                <option value="0.5" selected>Mixed — suburban</option>
+                <option value="1">Soft — grassland, fields, forest floor</option>
+              </select></label>
+
+            <div class="nz-met">
+              <label class="nz-slider">Air temperature <output id="nz-temp-out" class="mono"></output>
+                <input type="range" id="nz-temp" min="-10" max="35" step="1" value="15"></label>
+              <label class="nz-slider">Relative humidity <output id="nz-rh-out" class="mono"></output>
+                <input type="range" id="nz-rh" min="20" max="95" step="5" value="70"></label>
+            </div>
+
+            <details class="nz-edit">
+              <summary>✎ Edit source data &amp; receptor</summary>
+              <label class="nz-field">Receptor height
+                <select id="nz-rcv">
+                  <option value="1.5" selected>1.5 m — ear height, garden</option>
+                  <option value="4">4 m — first-floor façade (END mapping)</option>
+                </select></label>
+              <div id="nz-sources-edit"></div>
+              <div class="nz-dim">Per-unit A-weighted sound power (dB re 1 pW) and unit counts.
+                Empty fields use typical vendor data / MW-scaled counts. Use your
+                manufacturer's data sheets here for a site-specific run.</div>
+            </details>
+          </div>
+
+          <div class="nz-kpi">
+            <div class="nz-kpi-big"><span class="num" id="nz-lwa"></span><span class="unit">dB(A) total sound power</span></div>
+            <div class="nz-kpi-sub" id="nz-mode"></div>
+          </div>
+
+          <div class="nz-block">
+            <h3 id="nz-dist-title">How far the noise reaches</h3>
+            <table class="nz-table"><tbody id="nz-dist"></tbody></table>
+          </div>
+
+          <div class="nz-block">
+            <h3 id="nz-spec-title"></h3>
+            <div id="nz-spectrum" class="nz-chart"></div>
+            <p class="nz-dim">Low bands (63–250&nbsp;Hz) travel farthest — air barely absorbs them and walls
+               block them least. That's why distant plant reads as a <em>rumble</em>, not a hiss.</p>
+          </div>
+
+          <div class="nz-block">
+            <h3>What's making the noise</h3>
+            <table class="nz-table"><tbody id="nz-groups"></tbody></table>
+          </div>
+
+          <button id="nz-share" class="btn-primary nz-share">🔗 copy share link</button>
+          <div class="nz-meta mono" id="nz-meta"></div>
+
+          <details class="nz-about">
+            <summary>How this model works — every assumption, honestly</summary>
+            <h4>The physics</h4>
+            <p>Sound power from each piece of plant is propagated to ~15,000 receptor points in
+               8 octave bands (63&nbsp;Hz–8&nbsp;kHz) using <strong>ISO&nbsp;9613-2</strong>, the method used in real
+               environmental noise assessments: spherical spreading (−6&nbsp;dB per doubling of distance),
+               frequency-dependent air absorption per the full <strong>ISO&nbsp;9613-1</strong> formula (your temperature
+               and humidity sliders feed straight into it), the standard's per-band ground effect, and
+               single-edge diffraction over the optional perimeter wall (capped at 20&nbsp;dB, with the
+               standard's meteorological correction). Band levels are A-weighted to human hearing and
+               energy-summed. Receptors are at 1.5&nbsp;m ear height.</p>
+            <h4>The sound sources</h4>
+            <p>The facility is a square building (~700&nbsp;m² per MW of IT load) populated from typical
+               vendor sound data: air-cooled chillers ≈&nbsp;99&nbsp;dB(A) sound power per ~1.4&nbsp;MW unit on the
+               roof, cooling-tower cells ≈&nbsp;97&nbsp;dB(A) in an east yard, dry coolers ≈&nbsp;93&nbsp;dB(A), rooftop
+               air handling ≈&nbsp;94&nbsp;dB(A) per 3&nbsp;MW, grid transformers ≈&nbsp;90&nbsp;dB(A) with their 100/125&nbsp;Hz
+               hum, and — when testing — enclosed, silenced 2.5&nbsp;MW standby gensets at ≈&nbsp;108&nbsp;dB(A) each
+               in a west compound. Each type carries a realistic octave spectrum. Night mode runs cooling
+               at part load (≈&nbsp;−3&nbsp;dB, fan affinity laws); the mitigation package applies −8&nbsp;dB to cooling
+               plant and −10&nbsp;dB to gensets — the realistic span between default and best-practice design.</p>
+            <h4>The metrics</h4>
+            <p><strong>Day</strong> is full-load daytime LAeq (plus gensets when a test runs). <strong>Night</strong> is
+               Lnight: part-load cooling (fan affinity laws, ≈&nbsp;−3&nbsp;dB), no generator tests. <strong>Lden</strong> is
+               the EU Environmental Noise Directive's 24-hour composite (evening +5&nbsp;dB, night +10&nbsp;dB
+               weighting), combined at source level — exactly equivalent, since propagation is
+               level-independent. The <strong>rating level</strong> toggle adds the BS&nbsp;4142 / TA&nbsp;Lärm-style +5&nbsp;dB
+               character penalty wherever tonal plant (transformer hum, genset firing) contributes within
+               6&nbsp;dB of the total — that's the number many regulators actually compare against limits.
+               The cyan dashed contour marks where the plant drops to the typical <strong>background level</strong>
+               of your chosen area character: beyond it, you'd struggle to pick the site out of the
+               soundscape.</p>
+            <h4>Weather &amp; wind</h4>
+            <p>Temperature and humidity feed the ISO&nbsp;9613-1 absorption directly. <strong>Downwind worst case</strong>
+               is the standard's core method — wind carrying sound toward every receptor at once.
+               <strong>Long-term average</strong> applies the standard's §8 meteorological correction
+               (C<sub>met</sub>, C<sub>0</sub>&nbsp;=&nbsp;3&nbsp;dB) directionally around your prevailing wind: receptors
+               downwind stay at the worst case, receptors upwind average up to 3&nbsp;dB quieter — which is
+               why the plume goes egg-shaped. Stated accuracy of the method is ±3&nbsp;dB (the optional
+               uncertainty bands show it on the 45/55 contours).</p>
+            <h4>What it deliberately ignores</h4>
+            <p>No terrain and no shielding or reflection by other buildings (real cities shield <em>and</em>
+               canyon) — the two genuine fidelity ceilings of this browser tool. Flat ground, a generic
+               north-aligned layout, and closed windows knock a further ~20–25&nbsp;dB off indoors. This is a
+               <strong>screening tool</strong> to build intuition about siting, scale and mitigation — a real permit
+               needs a certified assessment with measured source data and 3-D geometry. For scale:
+               55&nbsp;dB(A) is a common daytime residential limit in EU regulation, 40–45&nbsp;dB(A) a common
+               night limit, and the WHO night guideline for annoyance-free sleep sits near 40&nbsp;dB outside
+               your window.</p>
+            <h4>Sources</h4>
+            <p>ISO&nbsp;9613-1/-2, IEC&nbsp;61672, Directive 2002/49/EC, WHO <em>Night Noise Guidelines for
+               Europe</em> (2009), vendor sound data / ASHRAE Applications ch.&nbsp;49 — the full citation
+               list and the model-vs-published cross-checks for both labs live in
+               <a href="REFERENCES.md" target="_blank" rel="noopener">REFERENCES.md</a>.</p>
+          </details>
+        </aside>
+      </div>
+    </section>
+
+    <!-- =============================== WATER LAB ============================= -->
+    <section id="view-water" class="view">
+      <div class="water-layout">
+        <div class="water-map-wrap">
+          <div id="water-map"></div>
+          <div class="wl-legend" id="wl-legend"></div>
+          <div class="map-attrib">
+            Basemap © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
+            contributors © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a> ·
+            Country tint: water stress, Eurostat WEI+ (<span class="mono">sdg_06_60</span>) ·
+            Rings: the site's water demand as irrigated-farmland equivalent ·
+            Weather: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (ERA5)
+          </div>
+        </div>
+
+        <aside class="water-panel">
+          <div class="page-head">
+            <h1>Water Lab</h1>
+            <p>Drop a data center anywhere in Europe and see how much water it would
+               drink — hour by hour, on the site's real weather year — and whether the
+               region can afford it. The map is tinted by each country's water stress
+               (WEI+); the rings show the demand as farmland it could have irrigated.</p>
+          </div>
+          <div class="fac-block">
+            <div class="fac-title">🔗 The facility — shared with the Noise Lab</div>
+            <div class="nz-site mono" id="wl-site"></div>
+            <label class="nz-slider wl-slider">IT capacity <output id="wl-mw-out" class="mono"></output>
+              <input type="range" id="wl-mw" min="5" max="300" step="5" value="60"></label>
+            <div class="nz-field">Cooling technology
+              <div id="wl-tech" class="wl-tech"></div>
+            </div>
+          </div>
+
+          <div class="wl-controls">
+            <label class="nz-slider wl-slider">Average IT load <output id="wl-util-out" class="mono"></output>
+              <input type="range" id="wl-util" min="30" max="100" step="5" value="80">
+              <span class="nz-dim">water scales with average load; the Noise Lab captures load through its Day / Night metric instead</span></label>
+
+            <label class="nz-slider wl-slider" id="wl-coc-row">Cycles of concentration
+              <output id="wl-coc-out" class="mono"></output>
+              <input type="range" id="wl-coc" min="2.5" max="8" step="0.5" value="4"></label>
+            <label class="nz-slider wl-slider hidden" id="wl-adb-row">Adiabatic switchover
+              <output id="wl-adb-out" class="mono"></output>
+              <input type="range" id="wl-adb" min="16" max="30" step="1" value="22"></label>
+
+            <label class="wl-toggle"><input type="checkbox" id="wl-hydro">
+              Count hydro reservoir evaporation in grid water
+              <span class="nz-dim">(large and contested — see assumptions)</span></label>
+
+            <details class="nz-edit wl-edit">
+              <summary>✎ Edit grid water intensity</summary>
+              <label class="wl-grid-edit">Electricity water intensity, L/kWh
+                <input type="number" id="wl-grid-l" placeholder="auto" min="0" max="20" step="0.05"></label>
+              <div class="nz-dim">Empty uses the selected country's actual generation mix
+                (Eurostat) weighted by per-technology consumption factors (Macknick et al. 2012).</div>
+            </details>
+          </div>
+
+          <div id="wl-loading" class="wl-loading" hidden>Fetching the site's weather year…</div>
+          <div id="wl-body">
+
+            <div class="nz-kpi wl-kpi">
+              <div class="nz-kpi-big"><span class="num" id="wl-makeup"></span><span class="unit">m³ of water per year</span></div>
+              <div class="nz-kpi-sub" id="wl-split"></div>
+            </div>
+            <div class="wl-minis">
+              <div class="wl-mini"><span class="wl-mini-val mono" id="wl-wue"></span>
+                <span class="wl-mini-label">WUE L/kWh IT</span></div>
+              <div class="wl-mini"><span class="wl-mini-val mono" id="wl-pue"></span>
+                <span class="wl-mini-label">PUE</span></div>
+              <div class="wl-mini"><span class="wl-mini-val mono" id="wl-peak"></span>
+                <span class="wl-mini-label">m³ peak day</span></div>
+            </div>
+            <div class="nz-kpi-sub wl-climate" id="wl-climate"></div>
+
+            <div class="nz-block">
+              <h3>What that amount of water means</h3>
+              <table class="nz-table" id="wl-persp"></table>
+            </div>
+
+            <div class="nz-block">
+              <h3 id="wl-monthly-title">When the water is needed</h3>
+              <div id="wl-monthly" class="wl-chart"></div>
+              <p class="nz-dim" id="wl-monthly-cap"></p>
+            </div>
+
+            <div class="nz-block">
+              <h3>The water ⇄ energy trade-off</h3>
+              <div id="wl-compare" class="wl-chart wl-chart-tall"></div>
+              <p class="nz-dim" id="wl-compare-cap"></p>
+            </div>
+
+            <div class="nz-block wl-stress">
+              <h3>Can the region afford it?</h3>
+              <div class="wl-stress-head">
+                <span class="wl-wei-val mono" id="wl-wei"></span>
+                <span class="wl-wei-band" id="wl-wei-band"></span>
+              </div>
+              <div class="wl-wei-scale" id="wl-wei-scale"></div>
+              <div id="wl-wei-trend" class="wl-sparkline"></div>
+              <div class="wl-stress-text" id="wl-stress-text"></div>
+              <div class="wl-impact">
+                <div class="fac-title">This facility's slice</div>
+                <p class="wl-impact-row" id="wl-impact-nat"></p>
+                <label class="nz-slider wl-slider wl-impact-slider">Host water utility serves
+                  <output id="wl-pop-out" class="mono"></output>
+                  <input type="range" id="wl-pop" min="10" max="1000" step="10" value="50"></label>
+                <p class="wl-impact-row" id="wl-impact-loc"></p>
+                <p class="wl-fine">Both numbers use national, annual data. Real stress is
+                   <b>basin-level</b> (a stressed south hides behind a wet north) and
+                   <b>seasonal</b> (summer runs far above the annual mean — exactly when the
+                   monthly profile above peaks), so the local number is the one to argue
+                   about. A real permit needs the river-basin-district WEI+ and the
+                   utility's own supply plan.</p>
+              </div>
+            </div>
+
+            <div class="nz-block">
+              <h3>Where the water goes</h3>
+              <table class="nz-table" id="wl-fate"></table>
+              <p class="nz-dim" id="wl-fate-cap"></p>
+            </div>
+
+            <button id="wl-share" class="btn-primary wl-share">🔗 copy share link</button>
+            <div class="nz-meta mono" id="wl-meta"></div>
+
+            <details class="nz-about wl-about-box">
+              <summary>How this model works — every assumption, honestly</summary>
+              <div class="wl-about" id="wl-about"></div>
+            </details>
+
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
