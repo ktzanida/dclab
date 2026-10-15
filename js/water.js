@@ -19,7 +19,7 @@ import {
 } from "./water-model.js";
 import { data } from "./data.js";
 import { buildTechPicker, facility } from "./facility.js";
-import { baseAxis, flagEmoji, fmt, makeChart, TOOLTIP_STYLE } from "./util.js";
+import { addBasemap, baseAxis, flagEmoji, fmt, makeChart, TOOLTIP_STYLE } from "./util.js";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -32,7 +32,7 @@ const ACCENT = "#38bdf8";
 const IRRIGATION_M3_PER_HA = 6000; // southern-European irrigated maize (FAO)
 
 const state = {
-  lat: facility.lat, lon: facility.lon, country: "ES", countryName: "Spain",
+  lat: facility.lat, lon: facility.lon, country: "EL", countryName: "Greece",
   climate: null, context: null, weiMap: null, geo: null,
   map: null, marker: null, ringTotal: null, ringEvap: null,
   charts: {}, // monthly, compare, wei
@@ -628,10 +628,7 @@ export async function initWater() {
     zoomControl: false, attributionControl: false, minZoom: 4, maxZoom: 15,
   }).setView([state.lat, state.lon], 6);
   L.control.zoom({ position: "bottomright" }).addTo(map);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-    subdomains: "abcd", maxZoom: 19,
-    attribution: "© OpenStreetMap contributors © CARTO",
-  }).addTo(map);
+  addBasemap(map);
   state.map = map;
 
   // WEI+ choropleth + country hover/click

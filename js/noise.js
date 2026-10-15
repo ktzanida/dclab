@@ -6,7 +6,7 @@ import {
   BANDS, SOURCE_KINDS, airAbsorption, buildScenario, computeGrid, distanceTo,
   levelAt, ratingLevel, suggestExtent,
 } from "./noise-model.js";
-import { baseAxis, fmt, makeChart, TOOLTIP_STYLE } from "./util.js";
+import { addBasemap, baseAxis, fmt, makeChart, TOOLTIP_STYLE } from "./util.js";
 import { buildTechPicker, facility } from "./facility.js";
 
 const GRID_N = 121;      // receptors per side
@@ -483,10 +483,7 @@ export async function initNoise() {
     zoomControl: false, attributionControl: false, maxZoom: 18, minZoom: 6,
   }).setView([state.lat, state.lon], 13);
   L.control.zoom({ position: "bottomright" }).addTo(map);
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-    subdomains: "abcd", maxZoom: 19,
-    attribution: "© OpenStreetMap contributors © CARTO",
-  }).addTo(map);
+  addBasemap(map);
   state.map = map;
 
   state.canvas = document.createElement("canvas");

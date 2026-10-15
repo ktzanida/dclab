@@ -90,7 +90,7 @@ everything each model deliberately ignores.
 |---|---|---|
 | [Open-Meteo](https://open-meteo.com/) | ERA5 hourly weather year per site | CC-BY 4.0, free for non-commercial use |
 | [Eurostat](https://ec.europa.eu/eurostat) | WEI+ water stress (`sdg_06_60`), renewable freshwater (`env_wat_res`), electricity by fuel (`nrg_bal_peh`) | Eurostat open reuse policy |
-| [CARTO](https://carto.com/attributions) / [OpenStreetMap](https://www.openstreetmap.org/copyright) | Basemap tiles | Attribution required (shown in-app and on exports) |
+| [Esri World Dark Gray Canvas](https://www.arcgis.com/home/item.html?id=358ec1e175ea41c3bf5c68f0da11ae2b) / [OpenStreetMap](https://www.openstreetmap.org/copyright) | Basemap tiles (no API key) | Attribution required (shown in-app and on exports) |
 | [GISCO](https://gisco-services.ec.europa.eu/) © EuroGeographics | Country polygons (bundled, `data/europe.geojson`) | Attribution required |
 
 ## Project layout

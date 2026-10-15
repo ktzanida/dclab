@@ -15,7 +15,7 @@ import { TECHS } from "./water-model.js";
 const subs = new Set();
 
 export const facility = {
-  lat: 41.65, lon: -0.88, // Aragón, Spain — the heart of Europe's data-center siting debate
+  lat: 37.90, lon: 23.87, // Mesogeia, Attica — Greece's emerging data-center cluster
   mw: 60,                 // IT capacity, MW
   tech: "towers",         // one of water-model.js TECHS keys
 

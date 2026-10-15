@@ -16,6 +16,7 @@ import { facility } from "./facility.js";
 import { getNoiseReport } from "./noise.js";
 import { getWaterReport } from "./water.js";
 import { TECHS } from "./water-model.js";
+import { BASEMAP } from "./util.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -33,7 +34,7 @@ async function waitFor(fn, timeoutMs, label) {
 
 // ------------------------------------------------------- static map snapshots
 //
-// CARTO's basemap tiles are CORS-enabled (verified: Access-Control-Allow-
+// The Esri basemap tiles are CORS-enabled (verified: Access-Control-Allow-
 // Origin: *), so we can composite the actual map around the chosen site into
 // the report: tiles → canvas, overlays drawn in Web-Mercator pixel space,
 // scale bar + attribution burned in. Any tile/canvas failure degrades to null
@@ -42,13 +43,13 @@ async function waitFor(fn, timeoutMs, label) {
 const TILE = 256;
 const M_PER_PX_Z0 = 156543.03392; // Web-Mercator ground resolution at z0, equator
 
-function loadTile(z, x, y, sub) {
+function loadTile(src) {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
-    img.src = `https://${sub}.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`;
+    img.src = src;
   });
 }
 
@@ -77,17 +78,24 @@ async function mapSnapshot({ lat, lon, halfM, w, h, draw }) {
     ctx.fillStyle = "#0a0e14";
     ctx.fillRect(0, 0, w, h);
 
+    // Base and label tiles load together; labels are drawn only after every
+    // base tile so no base tile can paint over a neighbour's labels.
     const jobs = [];
     for (let ty = Math.floor(y0 / TILE); ty <= Math.floor((y0 + h) / TILE); ty++) {
       if (ty < 0 || ty >= 2 ** z) continue;
       for (let tx = Math.floor(x0 / TILE); tx <= Math.floor((x0 + w) / TILE); tx++) {
         const wx = ((tx % 2 ** z) + 2 ** z) % 2 ** z; // wrap the antimeridian
-        jobs.push(loadTile(z, wx, ty, "abcd"[(tx + ty) % 4]).then((img) => {
-          if (img) ctx.drawImage(img, tx * TILE - x0, ty * TILE - y0);
-        }));
+        jobs.push(Promise.all([
+          loadTile(BASEMAP.base(z, wx, ty)), loadTile(BASEMAP.labels(z, wx, ty)),
+        ]).then((imgs) => ({ imgs, dx: tx * TILE - x0, dy: ty * TILE - y0 })));
       }
     }
-    await Promise.all(jobs);
+    const tiles = await Promise.all(jobs);
+    for (const layer of [0, 1]) {
+      for (const { imgs, dx, dy } of tiles) {
+        if (imgs[layer]) ctx.drawImage(imgs[layer], dx, dy);
+      }
+    }
 
     const project = (la, lo) => {
       const [px, py] = toWorld(la, lo);
@@ -98,7 +106,7 @@ async function mapSnapshot({ lat, lon, halfM, w, h, draw }) {
     ctx.font = "10px Inter, sans-serif";
     ctx.textAlign = "right";
     ctx.fillStyle = "rgba(255,255,255,0.55)";
-    ctx.fillText("© OpenStreetMap contributors © CARTO", w - 8, h - 8);
+    ctx.fillText(BASEMAP.attribution, w - 8, h - 8);
     return canvas.toDataURL();
   } catch {
     return null;

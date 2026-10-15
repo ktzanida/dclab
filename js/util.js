@@ -33,3 +33,24 @@ export const TOOLTIP_STYLE = {
   borderColor: "#232d3b",
   textStyle: { color: "#e6edf3", fontSize: 12 },
 };
+
+// Basemap: Esri World Dark Gray Canvas — keyless and CORS-enabled (the PDF
+// report composites the tiles onto a canvas). Base and labels come as separate
+// layers, so labels can sit above the data overlays. Native tiles stop at z16;
+// deeper zooms upscale.
+const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas";
+export const BASEMAP = {
+  base: (z, x, y) => `${ESRI}/World_Dark_Gray_Base/MapServer/tile/${z}/${y}/${x}`,
+  labels: (z, x, y) => `${ESRI}/World_Dark_Gray_Reference/MapServer/tile/${z}/${y}/${x}`,
+  maxNativeZoom: 16,
+  attribution: "© Esri, HERE, Garmin · © OpenStreetMap contributors",
+};
+
+export function addBasemap(map) {
+  const opts = { maxNativeZoom: BASEMAP.maxNativeZoom, maxZoom: 19 };
+  L.tileLayer(BASEMAP.base("{z}", "{x}", "{y}"), opts).addTo(map);
+  const pane = map.createPane("labels");
+  pane.style.zIndex = 450; // above overlayPane (400), below markers (600)
+  pane.style.pointerEvents = "none";
+  L.tileLayer(BASEMAP.labels("{z}", "{x}", "{y}"), { ...opts, pane }).addTo(map);
+}
