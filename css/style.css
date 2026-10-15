@@ -19,6 +19,9 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
+@supports (height: 100dvh) {
+  body { height: 100dvh; } /* mobile: track the visible viewport as browser bars show/hide */
+}
 body {
   background: var(--bg);
   color: var(--text);
@@ -87,6 +90,8 @@ main { height: calc(100% - var(--header-h)); position: relative; }
   max-width: 75%;
 }
 .map-attrib a { color: var(--text-2); }
+/* lift the zoom buttons clear of the attribution strip */
+.leaflet-bottom.leaflet-right .leaflet-control-zoom { margin-bottom: 44px; }
 
 .seg {
   display: inline-flex; gap: 2px;
@@ -398,13 +403,54 @@ main { height: calc(100% - var(--header-h)); position: relative; }
 
 /* ------------------------------ responsive ----------------------------- */
 @media (max-width: 1100px) {
-  .noise-layout { grid-template-columns: 1fr; grid-template-rows: 48% 52%; }
-  .noise-panel { border-left: none; border-top: 1px solid var(--line); }
-  .nz-legend { display: none; }
-  .water-layout { grid-template-columns: 1fr; grid-template-rows: 48% 52%; }
-  .water-panel { border-left: none; border-top: 1px solid var(--line); }
-  .wl-legend { display: none; }
+  /* minmax(0, …): a bare 1fr track grows to its widest content (nowrap
+     buttons, mono readouts) and pushes the whole page off-screen */
+  .noise-layout, .water-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 48%) minmax(0, 52%);
+  }
+  .noise-panel, .water-panel {
+    border-left: none; border-top: 1px solid var(--line);
+    overscroll-behavior: contain; /* panel scroll doesn't drag the page */
+  }
   .brand-sub { display: none; }
+  .nz-legend, .wl-legend { transform: scale(0.85); transform-origin: bottom left; bottom: 52px; }
+}
+
+@media (max-width: 700px) {
+  :root { --header-h: 52px; }
+  #topbar { gap: 10px; padding: 0 12px; }
+  .brand { flex-shrink: 0; }
+  .brand-name { font-size: 17px; }
+  #nav { gap: 2px; min-width: 0; }
+  #nav a { padding: 8px 10px; white-space: nowrap; }
+  .lbl-long { display: none; }
+  .btn-ghost { padding: 8px 10px; }
+
+  /* legends would cover half the map at this size; the contour labels stay */
+  .nz-legend, .wl-legend { display: none; }
+  .map-attrib { max-width: 100%; font-size: 9px; border-top-left-radius: 0; }
+  .leaflet-control-zoom { display: none; } /* pinch-zoom instead */
+
+  .noise-panel, .water-panel { padding: 18px 16px 40px; gap: 16px; }
+  .page-head h1 { font-size: 22px; }
+  .page-head p { font-size: 14px; }
+
+  /* bigger touch targets */
+  .seg button { padding: 8px 12px; font-size: 13px; }
+  .wl-tech button { padding: 10px 12px; }
+  .nz-toggles input, .wl-toggle input { width: 18px; height: 18px; vertical-align: -3px; }
+  .nz-edit summary, .nz-about summary { padding-top: 13px; padding-bottom: 13px; }
+
+  /* iOS Safari zooms the page when a field under 16px gets focus */
+  .nz-field select, .nz-src-row input, .wl-grid-edit input { font-size: 16px; }
+  .nz-src-row input { width: 64px; }
+
+  .nz-kpi-big .num { font-size: 32px; }
+  .wl-minis { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .wl-mini { padding: 8px 10px; }
+  .wl-mini-val { font-size: 16px; overflow-wrap: anywhere; }
+  .wl-mix-table { display: block; overflow-x: auto; }
 }
 
 /* scrollbars */
